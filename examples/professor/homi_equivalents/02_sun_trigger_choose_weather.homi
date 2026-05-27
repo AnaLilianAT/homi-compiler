@@ -1,0 +1,47 @@
+automacao "Por do Sol" modo single {
+    descricao "Liga dispositivos em horarios diferentes dependendo do clima";
+
+    gatilhos {
+        quando sol por_do_sol offset "-01:30:00" id "chuva";
+        quando sol por_do_sol offset "-01:15:00" id "nublado";
+        quando sol por_do_sol offset "-00:45:00" id "sol";
+    }
+
+    condicoes {
+        se estado alarm_control_panel.alarmo igual ["disarmed"];
+    }
+
+    acoes {
+        escolha {
+            caso estado weather.forecast_casa igual ["rainy", "pouring", "lightning-rainy", "hail", "snowy"] {
+                faca servico automation.trigger alvo {
+                    entity_id: [automation.cozinha_ligar_luzes];
+                } dados {
+                    skip_condition: true;
+                } metadados {
+                };
+            }
+
+            caso todos {
+                estado weather.forecast_casa igual ["cloudy", "windy-variant", "fog", "partlycloudy", "windy"];
+                dispositivo switch device_id "b367687260d5c280782ca2662bc32784" entity_id "eff0606bc3425bb3266f319ae937d810" desligado;
+            } {
+                faca servico automation.trigger alvo {
+                    entity_id: [automation.cozinha_ligar_luzes];
+                } dados {
+                    skip_condition: true;
+                } metadados {
+                };
+            }
+
+            caso gatilho em ["sol"] {
+                faca servico automation.trigger alvo {
+                    entity_id: [automation.cozinha_ligar_luzes];
+                } dados {
+                    skip_condition: true;
+                } metadados {
+                };
+            }
+        }
+    }
+}

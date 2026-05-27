@@ -1,0 +1,94 @@
+- alias: Closet - movimento
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - timer.closet
+    to:
+    - idle
+    id: Ocioso
+    alias: Movimento Ocioso
+  - trigger: state
+    entity_id:
+    - timer.closet
+    to:
+    - active
+    from:
+    - idle
+    id: Movimento
+  - trigger: device
+    domain: binary_sensor
+    device_id: 9a58a7513855478673b36aab01b68238
+    entity_id: 1e1e192bce0cdc593a3e72dc6e996b46
+    type: motion
+    id: Detectou
+  - trigger: device
+    domain: sensor
+    device_id: flow-device
+    entity_id: sensor.fluxo_chuveiro
+    type: volume_flow_rate
+    above: 3.2
+    id: Fluxo
+  conditions:
+  - condition: state
+    entity_id: alarm_control_panel.alarmo
+    state: disarmed
+  - condition: or
+    conditions:
+    - condition: trigger
+      id: Movimento
+    - condition: trigger
+      id:
+      - Detectou
+      - Fluxo
+    enabled: true
+  actions:
+  - if:
+    - condition: trigger
+      id: Movimento
+    then:
+    - action: timer.start
+      target:
+        entity_id:
+        - timer.closet
+      data: {}
+    - if:
+      - condition: and
+        conditions:
+        - condition: device
+          domain: switch
+          device_id: 17577b83efd0951c4002cd6c7b91053c
+          entity_id: bb97c45f407329aca067d3f274499a81
+          type: is_off
+        - condition: device
+          domain: alarm_control_panel
+          device_id: 5e51e34745f04cf7f80d7a374d922d6f
+          entity_id: 37dc24654a788314bfb4de2e2c827fd0
+          type: is_disarmed
+      then:
+      - type: turn_on
+        device_id: b2f2ddf08a4b8e321fa259c76df42cef
+        entity_id: e6bd5f71286d23ea1c87b580aea4407c
+        domain: switch
+      - action: light.turn_on
+        target:
+          entity_id:
+          - light.fita_led_rgb_5m
+        data:
+          brightness_pct: 20
+        enabled: true
+  - if:
+    - condition: trigger
+      id: Ocioso
+    then:
+    - type: turn_off
+      device_id: b2f2ddf08a4b8e321fa259c76df42cef
+      entity_id: e6bd5f71286d23ea1c87b580aea4407c
+      domain: switch
+    - action: timer.finish
+      target:
+        entity_id:
+        - timer.closet
+      data: {}
+      enabled: true
+  mode: restart

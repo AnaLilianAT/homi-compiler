@@ -1,0 +1,11 @@
+automacao "Gatilho desconhecido" modo single {
+    gatilhos {
+        quando hora "05:00:00" id "Hora";
+    }
+    condicoes {
+        se gatilho em ["Inexistente"];
+    }
+    acoes {
+        espere 45s;
+    }
+}

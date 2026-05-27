@@ -1,0 +1,8 @@
+automacao "Entidade indefinida" modo single {
+    condicoes {
+        se estado luz_inexistente igual ["on"];
+    }
+    acoes {
+        espere 45s;
+    }
+}

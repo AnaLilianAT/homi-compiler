@@ -1,0 +1,7 @@
+dispositivo sensor_temp = sensor device_id "dev-sensor-temp" entity_id "sensor.temperatura";
+
+automacao "Erro semantico" modo single {
+    acoes {
+        faca ligar sensor_temp;
+    }
+}

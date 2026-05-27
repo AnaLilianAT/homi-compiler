@@ -1,0 +1,13 @@
+automacao "Por do sol" modo single {
+    gatilhos {
+        quando sol por_do_sol offset "-00:45:00" id "sol";
+    }
+
+    acoes {
+        faca servico automation.trigger alvo {
+            entity_id: [automation.cozinha_ligar_luzes];
+        } dados {
+            skip_condition: true;
+        };
+    }
+}

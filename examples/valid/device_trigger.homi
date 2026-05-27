@@ -1,0 +1,12 @@
+automacao "Tablet - bateria" modo single {
+    gatilhos {
+        quando dispositivo sensor device_id "dev-tablet" entity_id "sensor.tablet_bateria" bateria abaixo 20 id "Bateria baixa";
+    }
+
+    acoes {
+        faca servico notify.mobile_app_zfold4 dados {
+            message: "Tablet com bateria baixa";
+            title: "Energia";
+        };
+    }
+}

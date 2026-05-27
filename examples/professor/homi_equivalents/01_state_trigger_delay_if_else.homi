@@ -1,0 +1,25 @@
+automacao "Corda Corredor - movimento" modo restart {
+    descricao "Aciona a luz do corredor e aplica atraso conforme o horario";
+
+    gatilhos {
+        quando estado [binary_sensor.corredor_suite_luminance_motion_sensor_movimento, binary_sensor.tz3000_6ygjfyll_ts0202, binary_sensor.motion_sensor_movimento] para ["on"] id "Movimento";
+    }
+
+    condicoes {
+        se dispositivo switch device_id "17577b83efd0951c4002cd6c7b91053c" entity_id "bb97c45f407329aca067d3f274499a81" ligado;
+        se dispositivo alarm_control_panel device_id "5e51e34745f04cf7f80d7a374d922d6f" entity_id "37dc24654a788314bfb4de2e2c827fd0" desarmado;
+        se estado light.corda_led_corredor igual ["off"];
+    }
+
+    acoes {
+        faca ligar light device_id "fbbfb3abd57bee6b19cc076ec0fd1b49" entity_id "a4595b3013d5c452494f933e1e104129";
+
+        se horario entre "01:15:00" e "12:00:00" entao {
+            espere 45s;
+        } senao {
+            espere 1min45s;
+        }
+
+        faca desligar light device_id "fbbfb3abd57bee6b19cc076ec0fd1b49" entity_id "a4595b3013d5c452494f933e1e104129";
+    }
+}

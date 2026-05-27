@@ -1,0 +1,7 @@
+automacao "Sem chave final" modo single {
+    gatilhos {
+        quando hora "05:00:00" id "Hora";
+    }
+    acoes {
+        espere 45s;
+    }

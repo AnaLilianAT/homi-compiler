@@ -1,0 +1,62 @@
+- alias: Tablet - carregador
+  description: ''
+  triggers:
+  - trigger: device
+    domain: sensor
+    device_id: 033813d16b9570ea8ed3fe2ee4e908e9
+    entity_id: d46e6d632a36b57b7c07b1885c32ad88
+    type: battery_level
+    below: 20
+    id: '- de 20'
+  - trigger: device
+    domain: sensor
+    device_id: 033813d16b9570ea8ed3fe2ee4e908e9
+    entity_id: d46e6d632a36b57b7c07b1885c32ad88
+    type: battery_level
+    above: 75
+    id: + de 75
+  - trigger: device
+    domain: sensor
+    device_id: 033813d16b9570ea8ed3fe2ee4e908e9
+    entity_id: d46e6d632a36b57b7c07b1885c32ad88
+    type: battery_level
+    below: 5
+    id: '- de 5'
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id: + de 75
+      sequence:
+      - type: turn_off
+        device_id: bda1f38607c9e810f10b241569f46c77
+        entity_id: 6a55b660d511de43c42b534c2f201dbb
+        domain: switch
+      - action: notify.mobile_app_zfold4
+        data:
+          message: Tablet descarregando
+    - conditions:
+      - condition: trigger
+        id: '- de 20'
+      sequence:
+      - type: turn_on
+        device_id: bda1f38607c9e810f10b241569f46c77
+        entity_id: 6a55b660d511de43c42b534c2f201dbb
+        domain: switch
+      - action: notify.mobile_app_zfold4
+        data:
+          message: Tablet carregando
+    - conditions:
+      - condition: trigger
+        id: '- de 5'
+      sequence:
+      - type: turn_on
+        device_id: bda1f38607c9e810f10b241569f46c77
+        entity_id: 6a55b660d511de43c42b534c2f201dbb
+        domain: switch
+      - action: notify.mobile_app_zfold4
+        data:
+          message: Tablet carregando
+          title: Tablet zerado de bateria
+  mode: single

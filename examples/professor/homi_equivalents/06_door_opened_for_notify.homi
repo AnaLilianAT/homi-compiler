@@ -1,0 +1,34 @@
+automacao "Sala - porta de entrada" modo single {
+    gatilhos {
+        quando dispositivo binary_sensor device_id "5ab340c52c9995f0bafbc6c0dc79812e" entity_id "b729bfc5dc7003d3bca5d64247f8dfc6" aberta id "Aberta";
+        quando dispositivo binary_sensor device_id "5ab340c52c9995f0bafbc6c0dc79812e" entity_id "b729bfc5dc7003d3bca5d64247f8dfc6" aberta id "Aberta 1 min" por 1min;
+        quando dispositivo binary_sensor device_id "5ab340c52c9995f0bafbc6c0dc79812e" entity_id "b729bfc5dc7003d3bca5d64247f8dfc6" fechada id "Fechada";
+    }
+
+    acoes {
+        se todos {
+            gatilho em ["Aberta"];
+            estado switch.luzes_da_sala igual ["off"];
+            dispositivo media_player device_id "9effd46c0c669c81be568b6baf21a14c" entity_id "eea259ec8e8a95d09dd5c7d8619d1658" desligado;
+            dispositivo media_player device_id "d9c64e91476cb5a39d1fdf508673f900" entity_id "ccc6d60a59506b4beb48870f9263604a" desligado;
+        } entao {
+            faca ligar light device_id "5f9afdf1309a0b93f968874d8987f9ff" entity_id "67a209bb0d8363e1f2526bdbba20ba71";
+            faca servico notify.mobile_app_zfold4 dados {
+                message: "Porta aberta e luz de entrada ligada!";
+            } metadados {
+            };
+        }
+
+        se gatilho em ["Aberta 1 min"] entao {
+            faca servico notify.send_message alvo {
+                entity_id: [notify.echo_show_8_speak, notify.music_frame_alexa_speak];
+            } dados {
+                message: "Porta aberta ha mais de 1 minuto!";
+            };
+            faca servico notify.mobile_app_zfold4 dados {
+                message: "Porta aberta por 1 minuto!";
+            } metadados {
+            };
+        }
+    }
+}

@@ -1,0 +1,26 @@
+automacao "Clima e sol" modo single {
+    gatilhos {
+        quando sol por_do_sol offset "-00:45:00" id "sol";
+        quando estado [weather.forecast_casa] para ["rainy"] id "chuva";
+    }
+
+    acoes {
+        escolha {
+            caso estado weather.forecast_casa igual ["rainy", "pouring"] {
+                faca servico automation.trigger alvo {
+                    entity_id: [automation.cozinha_ligar_luzes];
+                } dados {
+                    skip_condition: true;
+                };
+            }
+
+            caso gatilho em ["sol"] {
+                faca servico automation.trigger alvo {
+                    entity_id: [automation.cozinha_ligar_luzes];
+                } dados {
+                    skip_condition: true;
+                };
+            }
+        }
+    }
+}

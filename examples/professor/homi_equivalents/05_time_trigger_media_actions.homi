@@ -1,0 +1,55 @@
+automacao "Aviso Sonoro - Interruptor Ligado" modo single {
+    descricao "Avisa no Google Home quando o interruptor for ligado";
+
+    gatilhos {
+        quando hora "05:00:00" dias [seg] id "Hora";
+    }
+
+    acoes {
+        faca servico media_player.turn_off alvo {
+            entity_id: [media_player.music_frame_2, media_player.music_frame, media_player.nestmini0550];
+        } dados {
+        };
+
+        faca servico media_player.volume_set alvo {
+            entity_id: [media_player.tx_nr5100];
+        } dados {
+            volume_level: 0.4;
+        } metadados {
+        };
+
+        faca servico media_player.play_media alvo {
+            entity_id: [media_player.tx_nr5100];
+        } dados {
+            media_content_id: "https://example.com/audio.mp3";
+            media_content_type: "audio/mp3";
+            extra: {
+                metadata: {
+                    title: "Aviso";
+                };
+            };
+        } metadados {
+            source: "homi";
+        };
+
+        faca servico tts.speak alvo {
+            entity_id: [tts.google_ai_tts];
+        } dados {
+            cache: true;
+            media_player_entity_id: media_player.cozinha_4;
+            message: "oi oi oi oi oi";
+        };
+
+        faca servico alexa_devices.send_sound dados {
+            sound: "amzn_sfx_doorbell_chime_01";
+            device_id: "3926ef6f709821d794008bb86c52ecd4";
+        } metadados {
+        };
+
+        faca servico alexa_devices.send_text_command dados {
+            device_id: "38496a203273bbff294d6465d4042e55";
+            text_command: "desligar tela";
+        } metadados {
+        };
+    }
+}

@@ -1,0 +1,47 @@
+dispositivo luz_closet = switch device_id "b2f2ddf08a4b8e321fa259c76df42cef" entity_id "e6bd5f71286d23ea1c87b580aea4407c";
+
+automacao "Closet - movimento" modo restart {
+    gatilhos {
+        quando estado [timer.closet] para ["idle"] apelido "Movimento Ocioso" id "Ocioso";
+        quando estado [timer.closet] de ["idle"] para ["active"] id "Movimento";
+        quando dispositivo binary_sensor device_id "9a58a7513855478673b36aab01b68238" entity_id "1e1e192bce0cdc593a3e72dc6e996b46" movimento id "Detectou";
+        quando dispositivo sensor device_id "flow-device" entity_id "sensor.fluxo_chuveiro" volume_fluxo acima 3.2 id "Fluxo";
+    }
+
+    condicoes {
+        se estado alarm_control_panel.alarmo igual ["disarmed"];
+        se qualquer {
+            gatilho em ["Movimento"];
+            gatilho em ["Detectou", "Fluxo"];
+        } habilitado true;
+    }
+
+    acoes {
+        se gatilho em ["Movimento"] entao {
+            faca servico timer.start alvo {
+                entity_id: [timer.closet];
+            } dados {
+            };
+
+            se todos {
+                dispositivo switch device_id "17577b83efd0951c4002cd6c7b91053c" entity_id "bb97c45f407329aca067d3f274499a81" desligado;
+                dispositivo alarm_control_panel device_id "5e51e34745f04cf7f80d7a374d922d6f" entity_id "37dc24654a788314bfb4de2e2c827fd0" desarmado;
+            } entao {
+                faca ligar luz_closet;
+                faca servico light.turn_on alvo {
+                    entity_id: [light.fita_led_rgb_5m];
+                } dados {
+                    brightness_pct: 20;
+                } habilitado true;
+            }
+        }
+
+        se gatilho em ["Ocioso"] entao {
+            faca desligar luz_closet;
+            faca servico timer.finish alvo {
+                entity_id: [timer.closet];
+            } dados {
+            } habilitado true;
+        }
+    }
+}
