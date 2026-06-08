@@ -2,12 +2,6 @@
 Analisador Sintático (Parser) — Linguagem Homi
 Implementado com PLY yacc, gerando tabela LALR(1) automaticamente.
 
-A tabela gerada fica em parsetab.py (útil para o relatório).
-Conflitos shift-reduce esperados (resolvidos por shift, comportamento correto):
-  - optional suffix COMO STRING em triggers
-  - optional suffix BRILHO NUMBER PORCENTO em 'ligar'
-  - optional OFFSET DURACAO em sun_event
-
 Recuperação de erros (Modo Pânico):
   As produções *_error sincronizam em trigger/condition/action seguinte ao erro,
   permitindo que o parser continue sem abortar no primeiro erro.
