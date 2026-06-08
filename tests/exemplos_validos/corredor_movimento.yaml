@@ -1,0 +1,39 @@
+- alias: Corredor - movimento
+  triggers:
+  - trigger: state
+    entity_id: binary_sensor.motion_sensor_movimento
+    to: 'on'
+    id: Detectou
+  - trigger: state
+    entity_id: binary_sensor.corredor_suite_luminance_motion_sensor_movimento
+    to: 'on'
+    id: Detectou2
+  - trigger: state
+    entity_id: binary_sensor.tz3000_6ygjfyll_ts0202
+    to: 'on'
+    id: Detectou3
+  conditions:
+  - condition: state
+    entity_id: alarm_control_panel.alarmo
+    state: disarmed
+  - condition: state
+    entity_id: light.corda_led_corredor
+    state: 'off'
+  actions:
+  - action: light.turn_on
+    target:
+      entity_id: light.corda_led_corredor
+  - if:
+    - condition: time
+      after: '01:15:00'
+      before: '12:00:00'
+    then:
+    - delay:
+        seconds: 45
+    else:
+    - delay:
+        minutes: 1
+  - action: light.turn_off
+    target:
+      entity_id: light.corda_led_corredor
+  mode: restart

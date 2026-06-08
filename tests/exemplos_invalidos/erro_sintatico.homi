@@ -1,0 +1,29 @@
+// Erro sintático 1: seção 'faca' sem 'quando' (obrigatório)
+// Esperado: erro sintático — body requer when_section
+
+automacao "Automação sem quando" {
+  se:
+    interruptor switch.luz esta desligado
+
+  faca:
+    ligar switch.luz
+
+  modo: unico
+}
+
+// Erro sintático 2: falta o 'fim' no bloco 'se...entao'
+// Esperado: erro sintático — token inesperado ao fechar automação
+
+automacao "Automação sem fim" {
+  quando:
+    sensor binary_sensor.motion muda_para on
+
+  faca:
+    se
+      interruptor switch.luz esta desligado
+    entao:
+      ligar switch.luz
+    // faltou 'fim' aqui
+
+  modo: unico
+}

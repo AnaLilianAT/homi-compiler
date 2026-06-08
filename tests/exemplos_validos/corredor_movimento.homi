@@ -1,0 +1,25 @@
+// Automação 1: Luz do corredor por movimento
+// Baseada na automação "Corda Corredor - movimento" do YAML de referência
+automacao "Corredor - movimento" {
+  quando:
+    sensor binary_sensor.motion_sensor_movimento muda_para on como "Detectou"
+    sensor binary_sensor.corredor_suite_luminance_motion_sensor_movimento muda_para on como "Detectou2"
+    sensor binary_sensor.tz3000_6ygjfyll_ts0202 muda_para on como "Detectou3"
+
+  se:
+    alarme alarm_control_panel.alarmo esta desarmado
+    luz light.corda_led_corredor esta desligada
+
+  faca:
+    ligar light.corda_led_corredor
+    se
+      horario entre 01:15 e 12:00
+    entao:
+      aguardar 45s
+    senao:
+      aguardar 1min
+    fim
+    desligar light.corda_led_corredor
+
+  modo: reiniciar
+}

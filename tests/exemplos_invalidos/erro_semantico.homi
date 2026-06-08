@@ -1,0 +1,41 @@
+// Erro semântico 1: brilho aplicado a interruptor (não é luz)
+// Esperado: "Erro semântico [linha 7]: 'brilho' só pode ser usado com entidades do domínio 'light'"
+
+automacao "Erro de tipo - brilho em switch" {
+  quando:
+    sensor binary_sensor.motion muda_para on
+
+  faca:
+    ligar switch.luzes_da_sala brilho 80%
+
+  modo: unico
+}
+
+// Erro semântico 2: notificação para entidade que não é notify
+// Esperado: "Erro semântico [linha N]: entidade alvo de 'notificar' deve ser do domínio 'notify'"
+
+automacao "Erro de tipo - notificar para luz" {
+  quando:
+    sensor binary_sensor.motion muda_para on
+
+  faca:
+    notificar "Movimento detectado" para light.sala
+
+  modo: unico
+}
+
+// Erro semântico 3: estado incompatível com domínio
+// Esperado: "Erro semântico [linha N]: estado 'desarmado' inválido para domínio 'light'"
+
+automacao "Erro de estado - luz desarmada" {
+  quando:
+    sensor binary_sensor.motion muda_para on
+
+  se:
+    luz light.sala esta desarmado
+
+  faca:
+    ligar light.sala
+
+  modo: unico
+}

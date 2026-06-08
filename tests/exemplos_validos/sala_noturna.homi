@@ -1,0 +1,21 @@
+// Automação 2: Movimento noturno na sala
+// Baseada na automação "Sala - movimento noturno" do YAML de referência
+automacao "Sala - movimento noturno" {
+  quando:
+    sensor binary_sensor.sala_motion_sensor muda_para on
+    sensor binary_sensor.cozinha_motion_sensor_movimento_2 muda_para on
+
+  se:
+    interruptor switch.luzes_da_sala esta desligado
+    interruptor switch.luzes_da_cozinha esta desligado
+    horario entre 01:00 e 06:30
+
+  faca:
+    ligar switch.ilha_interruptor_1
+    notificar "Movimento noturno na sala" para notify.mobile_app_zfold4
+    aguardar 4min
+    desligar switch.ilha_interruptor_1
+    desligar switch.sonoff_1001887e06_2
+
+  modo: unico
+}

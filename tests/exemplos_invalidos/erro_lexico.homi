@@ -1,0 +1,13 @@
+// Erro léxico: uso de caractere inválido '@' e '#'
+// Esperado: "Erro léxico: caractere '@' na linha 4"
+// O compilador deve reportar o erro e continuar (não abortar)
+
+automacao "Teste Erro Léxico" {
+  quando:
+    sensor binary_sensor.@motion muda_para on
+
+  faca:
+    ligar light.sala # isso não é comentário válido
+
+  modo: unico
+}

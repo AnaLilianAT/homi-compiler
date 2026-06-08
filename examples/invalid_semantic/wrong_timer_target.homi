@@ -1,8 +1,0 @@
-automacao "Timer em alvo invalido" modo single {
-    acoes {
-        faca servico timer.start alvo {
-            entity_id: [light.sala];
-        } dados {
-        };
-    }
-}

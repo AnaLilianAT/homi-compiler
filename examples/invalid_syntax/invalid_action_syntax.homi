@@ -1,5 +1,0 @@
-automacao "Acao invalida" modo single {
-    acoes {
-        faca light ligar device_id "abc" entity_id "def";
-    }
-}

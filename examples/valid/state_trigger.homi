@@ -1,9 +1,0 @@
-automacao "Corredor - movimento" modo restart {
-    gatilhos {
-        quando estado [binary_sensor.movimento_corredor] para ["on"] id "Movimento";
-    }
-
-    acoes {
-        espere 45s;
-    }
-}

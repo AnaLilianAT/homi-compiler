@@ -1,0 +1,34 @@
+- alias: Sala - movimento noturno
+  triggers:
+  - trigger: state
+    entity_id: binary_sensor.sala_motion_sensor
+    to: 'on'
+  - trigger: state
+    entity_id: binary_sensor.cozinha_motion_sensor_movimento_2
+    to: 'on'
+  conditions:
+  - condition: state
+    entity_id: switch.luzes_da_sala
+    state: 'off'
+  - condition: state
+    entity_id: switch.luzes_da_cozinha
+    state: 'off'
+  - condition: time
+    after: '01:00:00'
+    before: '06:30:00'
+  actions:
+  - action: switch.turn_on
+    target:
+      entity_id: switch.ilha_interruptor_1
+  - action: notify.mobile_app_zfold4
+    data:
+      message: Movimento noturno na sala
+  - delay:
+      minutes: 4
+  - action: switch.turn_off
+    target:
+      entity_id: switch.ilha_interruptor_1
+  - action: switch.turn_off
+    target:
+      entity_id: switch.sonoff_1001887e06_2
+  mode: single

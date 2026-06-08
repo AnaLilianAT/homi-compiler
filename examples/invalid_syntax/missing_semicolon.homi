@@ -1,7 +1,0 @@
-entidade luz_sala = light.sala
-
-automacao "Sem ponto e virgula" modo single {
-    acoes {
-        espere 45s;
-    }
-}

@@ -1,0 +1,47 @@
+- alias: Por do Sol
+  triggers:
+  - trigger: sun
+    event: sunset
+    offset: '-01:30:00'
+    id: chuva
+  - trigger: sun
+    event: sunset
+    offset: '-01:15:00'
+    id: nublado
+  - trigger: sun
+    event: sunset
+    offset: '-00:45:00'
+    id: sol
+  conditions:
+  - condition: state
+    entity_id: alarm_control_panel.alarmo
+    state: disarmed
+  actions:
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: switch.luzes_da_cozinha
+        state: 'off'
+      sequence:
+      - action: switch.turn_on
+        target:
+          entity_id: switch.luzes_da_cozinha
+    - conditions:
+      - condition: state
+        entity_id: switch.luzes_da_sala
+        state: 'off'
+      sequence:
+      - action: switch.turn_on
+        target:
+          entity_id: switch.luzes_da_sala
+  mode: single
+- alias: Sala - desligar LED sanca
+  triggers:
+  - trigger: time
+    at: '05:00:00'
+  conditions: []
+  actions:
+  - action: light.turn_off
+    target:
+      entity_id: light.sanca_led_sala
+  mode: single

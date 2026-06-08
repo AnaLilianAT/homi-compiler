@@ -1,0 +1,37 @@
+// Automação 3: Por do sol com múltiplos cenários de clima
+// Baseada na automação "Por do Sol" do YAML de referência
+automacao "Por do Sol" {
+  quando:
+    por_do_sol offset -1h30 como "chuva"
+    por_do_sol offset -1h15 como "nublado"
+    por_do_sol offset -45min como "sol"
+
+  se:
+    alarme alarm_control_panel.alarmo esta desarmado
+
+  faca:
+    escolher:
+      caso
+        interruptor switch.luzes_da_cozinha esta desligado
+      faca:
+        ligar switch.luzes_da_cozinha
+    caso
+        interruptor switch.luzes_da_sala esta desligado
+      faca:
+        ligar switch.luzes_da_sala
+    fim
+
+  modo: unico
+}
+
+// Automação 4: Desligar LED da sala às 5h
+// Baseada na automação "Sala - desligar LED sanca"
+automacao "Sala - desligar LED sanca" {
+  quando:
+    ao_horario 05:00
+
+  faca:
+    desligar light.sanca_led_sala
+
+  modo: unico
+}

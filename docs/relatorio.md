@@ -1,413 +1,639 @@
-# Relatorio Tecnico do Projeto Homi-Compiler
+# Relatório Técnico — Compilador Homi
 
-## 1. Introducao
+**Disciplina:** Compiladores  
+**Entrega:** 06/06/2026  
+**Descrição:** Compilador (tradutor) que converte scripts da linguagem **Homi** em arquivos YAML compatíveis com o Home Assistant.
 
-O Home Assistant utiliza arquivos YAML para descrever automacoes residenciais. Embora esse formato seja flexivel e amplamente usado, ele pode se tornar verboso, repetitivo e pouco intuitivo para usuarios leigos, especialmente quando uma automacao envolve multiplos gatilhos, condicoes logicas, atrasos, servicos e estruturas aninhadas como `if` e `choose`.
+---
 
-Este projeto propoe a linguagem Homi como uma camada de abstracao sobre o YAML do Home Assistant. A ideia central e permitir que automacoes residenciais sejam escritas em uma sintaxe mais declarativa, legivel e proxima do dominio do problema, reduzindo o custo cognitivo de edicao manual de YAML.
+## 1. Visão Geral
 
-Do ponto de vista de Compiladores, o fluxo implementado no projeto segue as etapas classicas do front-end e parte do back-end:
+A linguagem **Homi** permite que usuários leigos descrevam automações residenciais em português estruturado. O compilador percorre quatro fases clássicas:
 
-```text
-Homi -> Scanner -> Parser LL(1) -> AST -> Analise Semantica -> YAML
+```
+arquivo.homi
+    │
+    ▼
+[Fase 1] Análise Léxica     lexer.py    — PLY lex  (DFA automático)
+    │
+    ▼
+[Fase 2] Análise Sintática  parser.py   — PLY yacc (tabela LALR(1))
+    │ AST
+    ▼
+[Fase 3] Análise Semântica  semantic.py — tabela de símbolos + checagem de tipos
+    │ AST validada
+    ▼
+[Fase 4] Geração de Código  codegen.py  — AST → YAML Home Assistant
+    │
+    ▼
+arquivo.yaml
 ```
 
-O codigo fonte em Homi e primeiro tokenizado por um scanner manual, depois analisado por um parser preditivo LL(1) com tabela e pilha, convertido para uma AST, validado semanticamente e, por fim, traduzido para YAML compativel com o Home Assistant.
+---
 
-## 2. Definicao da linguagem
+## 2. Definição da Linguagem Homi
 
-### 2.1 Objetivos de design
+### 2.1 Princípios de Design
 
-Os principais objetivos da linguagem Homi sao:
+- Palavras-chave em **português** para acessibilidade a usuários leigos.
+- Estrutura declarativa com seções claramente separadas (`quando`, `se`, `faca`, `modo`).
+- Formas **masculina e feminina** aceitas nos estados (`desligado`/`desligada`, `armado`/`armada`).
+- Estados em inglês (`on`, `off`) também aceitos para compatibilidade com o HA.
 
-- fornecer uma sintaxe mais amigavel que YAML para automacoes residenciais;
-- manter uma estrutura adequada para implementacao por scanner manual e parser LL(1);
-- representar os padroes reais encontrados no arquivo de referencia do professor;
-- separar claramente declaracoes, gatilhos, condicoes e acoes;
-- facilitar futura extensao sem precisar criar uma palavra-chave para cada integracao do Home Assistant.
+### 2.2 Estrutura de um Script Homi
 
-### 2.2 Sintaxe geral
+```homi
+// Comentário de linha
 
-A linguagem foi organizada em torno de declaracoes opcionais e blocos de automacao:
+automacao "Nome da automacao" {
 
-```text
-entidade luz_sala = light.sala;
-dispositivo cortina = cover device_id "abc" entity_id "cover.sala";
+  quando:                          // gatilhos (obrigatório)
+    sensor binary_sensor.x muda_para on como "ID"
+    ao_horario 07:30
+    por_do_sol offset -45min como "sol"
 
-automacao "Sala - conforto" modo single {
-    descricao "Liga a iluminacao no fim da tarde";
+  se:                              // condições globais (opcional)
+    switch.luz esta desligado
+    horario entre 23:00 e 06:00
 
-    gatilhos {
-        quando sol por_do_sol offset "-00:45:00" id "sol";
-    }
+  faca:                            // ações (opcional)
+    ligar light.sala brilho 80%
+    aguardar 2min
+    desligar light.sala
+    notificar "Movimento!" para notify.mobile_app_zfold4
+    se
+      switch.x esta ligado
+    entao:
+      ligar light.y
+    senao:
+      desligar light.y
+    fim
+    escolher:
+      caso switch.a esta desligado faca:
+        ligar switch.a
+    fim
 
-    condicoes {
-        se estado luz_sala igual ["off"];
-    }
-
-    acoes {
-        faca servico light.turn_on alvo {
-            entity_id: [light.sala];
-        } dados {
-            brightness_pct: 80;
-        };
-    }
+  modo: reiniciar                  // single | restart | queued | parallel
 }
 ```
 
-### 2.3 Exemplos simples
+---
 
-Um exemplo minimo com trigger de horario:
-
-```text
-automacao "Bom dia" modo single {
-    gatilhos {
-        quando hora "05:00:00" id "Hora";
-    }
-
-    acoes {
-        espere 45s;
-    }
-}
-```
-
-Um exemplo com condicao e servico:
-
-```text
-automacao "Sala - noite" modo restart {
-    gatilhos {
-        quando estado [binary_sensor.movimento_sala] para ["on"] id "Movimento";
-    }
-
-    condicoes {
-        se estado switch.luzes_da_sala igual ["off"];
-    }
-
-    acoes {
-        faca servico light.turn_on alvo {
-            entity_id: [light.sala];
-        } dados {
-            brightness_pct: 20;
-        };
-    }
-}
-```
-
-A gramatica e os exemplos da linguagem foram projetados para cobrir os padroes observados em `examples/professor/automations_homi.yaml`, incluindo triggers `state`, `device`, `time` e `sun`, condicoes compostas e acoes por dispositivo e por servico.
-
-## 3. Gramatica Livre de Contexto
+## 3. Especificação da GLC (Gramática Livre de Contexto)
 
 ### 3.1 Terminais
 
-Os terminais da linguagem incluem:
+#### Palavras Reservadas
 
-- palavras reservadas, como `automacao`, `gatilhos`, `condicoes`, `acoes`, `quando`, `se`, `faca`, `espere`, `servico`, `modo`, `single`, `restart`;
-- operadores e delimitadores, como `{`, `}`, `[`, `]`, `:`, `;`, `,` e `=`;
-- tokens lexicos genericos, como `IDENTIFIER`, `DOTTED_ID`, `STRING`, `NUMBER`, `DURATION` e `EOF`.
+| Token | Lexema | Significado |
+|---|---|---|
+| `AUTOMACAO` | `automacao` | Declaração de automação |
+| `QUANDO` | `quando` | Seção de gatilhos |
+| `SE` | `se` | Seção de condições ou ação condicional |
+| `FACA` | `faca` | Seção de ações |
+| `MODO` | `modo` | Modo de execução |
+| `LIGAR` | `ligar` | Ação: ligar entidade |
+| `DESLIGAR` | `desligar` | Ação: desligar entidade |
+| `AGUARDAR` | `aguardar` | Ação: aguardar tempo |
+| `NOTIFICAR` | `notificar` | Ação: enviar notificação |
+| `PARA` | `para` | Preposição (alvo de notificação) |
+| `ENTAO` | `entao` | Bloco then |
+| `SENAO` | `senao` | Bloco else |
+| `FIM` | `fim` | Fecha bloco se / escolher |
+| `ESCOLHER` | `escolher` | Ação: escolha múltipla |
+| `CASO` | `caso` | Alternativa dentro de escolher |
+| `ESTA` | `esta` | Predicado "está" (condições) |
+| `MUDA_PARA` | `muda_para` | Evento de mudança de estado |
+| `COMO` | `como` | Define ID do gatilho |
+| `SENSOR` | `sensor` | Tipo: sensor binário |
+| `LUZ` | `luz` | Tipo: luz |
+| `INTERRUPTOR` | `interruptor` | Tipo: switch |
+| `ALARME` | `alarme` | Tipo: painel de alarme |
+| `MEDIA` | `media` | Tipo: media player |
+| `TIMER` | `timer` | Tipo: timer |
+| `HORARIO` | `horario` | Keyword de tempo |
+| `AO_HORARIO` | `ao_horario` | Gatilho de horário exato |
+| `ENTRE` | `entre` | Intervalo de tempo |
+| `E` | `e` | Conjunção de intervalo |
+| `NASCER_DO_SOL` | `nascer_do_sol` | Gatilho: sunrise |
+| `POR_DO_SOL` | `por_do_sol` | Gatilho: sunset |
+| `OFFSET` | `offset` | Deslocamento solar |
+| `BRILHO` | `brilho` | Parâmetro de brilho |
+| `UNICO` | `unico` | Modo single |
+| `REINICIAR` | `reiniciar` | Modo restart |
+| `FILA` | `fila` | Modo queued |
+| `PARALELO` | `paralelo` | Modo parallel |
+| `ON` / `OFF` | `on` / `off` | Estados inglês |
+| `LIGADO` / `LIGADA` | `ligado` / `ligada` | Estado ligado PT |
+| `DESLIGADO` / `DESLIGADA` | `desligado` / `desligada` | Estado desligado PT |
+| `ARMADO` / `ARMADA` | `armado` / `armada` | Estado armado PT |
+| `DESARMADO` / `DESARMADA` | `desarmado` / `desarmada` | Estado desarmado PT |
 
-Os detalhes completos estao em `docs/grammar.md` e na representacao interna em `src/grammar.py`.
+#### Tokens Literais
 
-### 3.2 Nao-terminais
+| Token | Expressão Regular | Exemplos |
+|---|---|---|
+| `ENTITY_ID` | `[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_.]*` | `light.sala`, `binary_sensor.corredor` |
+| `TIME` | `\d{2}:\d{2}(:\d{2})?` | `06:30`, `23:00:00` |
+| `DURACAO` | `-?\d+h\d+\|-?\d+(?:ms\|s\|min\|h)` | `45s`, `4min`, `-1h30`, `-45min` |
+| `NUMBER` | `\d+(\.\d+)?` | `80`, `3.14` |
+| `PORCENTO` | `%` | `%` |
+| `STRING` | `"[^"\n]*"\|'[^'\n]*'` | `"Movimento detectado"` |
+| `LBRACE` | `\{` | `{` |
+| `RBRACE` | `\}` | `}` |
+| `COLON` | `:` | `:` |
 
-Entre os nao-terminais principais estao:
+### 3.2 Não-Terminais e Produções
 
-- `program`
-- `top_level_list`
-- `automation_decl`
-- `triggers_section`
-- `conditions_section`
-- `actions_section`
-- `trigger_core`
-- `condition_clause`
-- `action_stmt`
-- `service_action`
+```
+program
+    : automation_list
 
-### 3.3 Principais producoes
+automation_list
+    : automation
+    | automation_list automation
 
-Algumas producoes centrais da linguagem sao:
+automation
+    : AUTOMACAO STRING LBRACE body RBRACE
 
-```text
-program ::= top_level_list EOF
+body
+    : when_section opt_se_section opt_faca_section opt_modo_section
 
-automation_decl ::= AUTOMACAO STRING MODO mode automation_block
+when_section
+    : QUANDO COLON trigger_list
 
-automation_block ::= LBRACE
-                     description_section_opt
-                     triggers_section_opt
-                     conditions_section_opt
-                     actions_section_opt
-                     RBRACE
+trigger_list
+    : trigger
+    | trigger_list trigger
 
-trigger_stmt ::= QUANDO trigger_core SEMICOLON
+trigger
+    : domain_kw ENTITY_ID MUDA_PARA state_value
+    | domain_kw ENTITY_ID MUDA_PARA state_value COMO STRING
+    | AO_HORARIO TIME
+    | AO_HORARIO TIME COMO STRING
+    | POR_DO_SOL
+    | POR_DO_SOL COMO STRING
+    | POR_DO_SOL OFFSET DURACAO
+    | POR_DO_SOL OFFSET DURACAO COMO STRING
+    | NASCER_DO_SOL
+    | NASCER_DO_SOL COMO STRING
+    | NASCER_DO_SOL OFFSET DURACAO
+    | NASCER_DO_SOL OFFSET DURACAO COMO STRING
 
-condition_stmt ::= SE condition_clause condition_enabled_opt SEMICOLON
+domain_kw
+    : SENSOR | LUZ | INTERRUPTOR | ALARME | MEDIA | TIMER
 
-simple_action_stmt ::= FACA action_command action_enabled_opt SEMICOLON
-                     | ESPERE duration_value action_enabled_opt SEMICOLON
+opt_se_section
+    : se_section | ε
+
+se_section
+    : SE COLON condition_list
+
+condition_list
+    : condition
+    | condition_list condition
+
+condition
+    : ENTITY_ID ESTA state_value
+    | domain_kw ENTITY_ID ESTA state_value
+    | HORARIO ENTRE TIME E TIME
+
+opt_faca_section
+    : faca_section | ε
+
+faca_section
+    : FACA COLON action_list
+
+action_list
+    : action
+    | action_list action
+
+action
+    : LIGAR ENTITY_ID
+    | LIGAR ENTITY_ID BRILHO NUMBER PORCENTO
+    | DESLIGAR ENTITY_ID
+    | AGUARDAR DURACAO
+    | NOTIFICAR STRING PARA ENTITY_ID
+    | SE condition_list ENTAO COLON action_list FIM
+    | SE condition_list ENTAO COLON action_list SENAO COLON action_list FIM
+    | ESCOLHER COLON choice_list FIM
+
+choice_list
+    : choice
+    | choice_list choice
+
+choice
+    : CASO condition_list FACA COLON action_list
+
+opt_modo_section
+    : modo_section | ε
+
+modo_section
+    : MODO COLON modo_value
+
+modo_value
+    : UNICO | REINICIAR | FILA | PARALELO
+
+state_value
+    : ON | OFF | LIGADO | DESLIGADO | ARMADO | DESARMADO | STRING | NUMBER
 ```
 
-### 3.4 Organizacao em secoes
+---
 
-A automacao foi organizada em tres secoes principais:
+## 4. Especificação do Analisador Léxico
 
-- `gatilhos`
-- `condicoes`
-- `acoes`
+### 4.1 Implementação
 
-Essa escolha melhora a legibilidade da linguagem e tambem simplifica o processo de analise sintatica. Cada secao comeca com uma palavra-chave distinta, o que reduz ambiguidades.
+Implementado com **PLY lex**, que gera um DFA (Autômato Finito Determinístico) automaticamente a partir das expressões regulares definidas nas funções `t_*`.
 
-### 3.5 Relacao com LL(1)
+Arquivo: `lexer.py` | Função de fábrica: `build_lexer()`
 
-A organizacao em secoes, combinada com delimitadores explicitos e fatoracoes locais, ajuda a manter a gramatica adequada para analise LL(1). Em vez de depender de backtracking, o parser escolhe a producao correta com base apenas no nao-terminal atual e no token de lookahead.
+### 4.2 Prioridade dos Tokens
 
-Alguns ajustes estruturais foram necessarios, por exemplo:
+Em PLY, funções-token têm prioridade sobre strings-token. Funções são tentadas na ordem de definição. A ordem usada é:
 
-- fatoracao de alternativas com prefixo comum em triggers solares;
-- separacao entre valores atomicos, listas e mapas;
-- uso de nao-terminais especificos para booleanos e duracoes.
+1. `t_ENTITY_ID` — testado **antes** de `t_ID` para que `light.sala` seja um único token
+2. `t_DURACAO` — testado **antes** de `t_NUMBER` para que `45s` não vire `45` + erro
+3. `t_TIME` — testado **antes** de `t_COLON` para que `01:15` não vire `01` + `:` + `15`
+4. `t_NUMBER`
+5. `t_STRING`
+6. `t_ID` — identifica palavras reservadas via dicionário `reserved`
 
-## 4. Analise lexica
+### 4.3 Tratamento de Comentários e Linhas
 
-O scanner foi implementado manualmente em `src/scanner.py` como um DFA explicito. Em vez de usar ferramentas prontas como ANTLR, PLY ou Lark, o projeto define estados internos e transicoes controladas em codigo Python.
+```python
+def t_COMMENT(t):
+    r'//[^\n]*'
+    pass   # descartado
 
-As principais classes de tokens reconhecidas sao:
+def t_newline(t):
+    r'\n+'
+    t.lexer.lineno += len(t.value)
+```
 
-- palavras-chave da linguagem;
-- identificadores simples, como `luz_sala` e `timer_closet`;
-- `DOTTED_ID`, usado para nomes como `light.sala`, `switch.turn_on` e `notify.mobile_app_zfold4`;
-- strings entre aspas;
-- numeros inteiros e decimais;
-- duracoes compactas, como `45s`, `4min`, `1h` e `1min45s`;
-- simbolos estruturais, como chaves, colchetes, `:` e `;`.
+### 4.4 Tratamento de Erros Léxicos
 
-O scanner tambem reconhece comentarios de linha iniciados por `#`, ignora espacos em branco e preserva informacoes de linha e coluna para cada token.
+Dois pontos de detecção:
 
-O reconhecimento de alguns elementos funciona da seguinte forma:
+- **`t_error(t)`**: caractere isolado inválido (ex: `@`, `#`). Registra o erro, avança 1 caractere e continua.
+- **`t_ID`**: identificador sem ponto não encontrado no dicionário `reserved`. Registra o erro e descarta o token.
 
-- `STRING`: consome o texto entre aspas, com tratamento de escapes simples;
-- `DOTTED_ID`: reconhece identificadores com pontos, usados tanto para entidades quanto para servicos;
-- `DURATION`: interpreta sequencias numericas seguidas de unidades como `h`, `min` e `s`;
-- `NUMBER`: aceita inteiros e decimais;
-- comentarios: consomem todos os caracteres ate o fim da linha;
-- simbolos: sao reconhecidos por tabela direta de caracteres.
+Todos os erros são acumulados em `lexer.lex_errors` para exibição consolidada.
 
-As posicoes `linha` e `coluna` sao atualizadas a cada caractere consumido. Isso permite que erros lexicos sejam reportados com localizacao precisa sem interromper o programa.
+---
 
-## 5. Analise sintatica
+## 5. Especificação do Analisador Sintático
 
-O parser sintatico foi implementado em `src/parser_ll1.py` com base em uma tabela preditiva LL(1) gerada em `src/parser_table.py`. A logica central nao e de descida recursiva pura: a decisao de parsing vem da tabela, e a execucao usa pilha.
+### 5.1 Método: LALR(1)
 
-O algoritmo funciona, em linhas gerais, da seguinte maneira:
+Implementado com **PLY yacc**, que constrói a tabela LALR(1) automaticamente a partir das funções `p_*`.
 
-1. inicializa a pilha com `EOF` e `program`;
-2. observa o topo da pilha e o token atual;
-3. se o topo e terminal, compara com o token atual;
-4. se o topo e nao-terminal, consulta a tabela LL(1);
-5. empilha a producao escolhida em ordem reversa;
-6. repete ate consumir a entrada.
+Arquivo: `parser.py` | Tabela gerada: `parsetab.py`
 
-Durante o processo, o parser monta uma arvore sintatica intermediaria, que depois e convertida para a AST da linguagem Homi.
+### 5.2 Construção da AST
 
-### 5.1 Modo panico
+Cada produção constrói nós da AST (definidos em `ast_nodes.py`):
 
-Quando ocorre erro sintatico, o parser registra um `Diagnostic` e entra em modo panico. Nessa estrategia, tokens sao descartados ate um ponto de sincronizacao, permitindo continuar a analise e reportar mais de um erro em uma mesma entrada.
+| Produção | Nó gerado |
+|---|---|
+| `automation` | `AutomationNode(name, triggers, conditions, actions, mode)` |
+| `trigger` | `TriggerNode(kind, entity, to, at, sun_event, offset, trigger_id)` |
+| `condition` | `ConditionNode(kind, entity, state, after, before)` |
+| `action` | `ActionNode(kind, entity, duration, message, brightness, ...)` |
+| `choice` | `ChoiceNode(conditions, actions)` |
 
-Os tokens de sincronizacao adotados foram:
+### 5.3 Conflitos Shift-Reduce
 
-- `SEMICOLON`
-- `RBRACE`
-- `RBRACKET`
-- `EOF`
+A gramática possui conflitos shift-reduce esperados em produções com sufixos opcionais (ex: `COMO STRING`, `BRILHO NUMBER PORCENTO`, `OFFSET DURACAO`). Em todos os casos, o comportamento padrão do PLY — **preferir shift** — produz o resultado correto (match mais longo).
 
-### 5.2 Exemplo de erro sintatico
+Nenhum conflito reduce-reduce foi detectado.
 
-O arquivo `examples/invalid_syntax/missing_semicolon.homi` omite `;` ao fim de uma declaracao. Nesse caso, o parser detecta a divergencia entre o terminal esperado e o token recebido, registra um diagnostico com linha e coluna e tenta prosseguir.
+### 5.4 Recuperação de Erros — Modo Pânico
 
-Outro exemplo didatico e `examples/invalid_syntax/wrong_section_order.homi`, em que `acoes` aparece antes de `gatilhos`. Como a gramatica fixa a ordem das secoes, o erro e sinalizado de forma previsivel.
+O parser **não aborta** no primeiro erro. São definidas três produções de recuperação:
 
-## 6. Analise semantica
+```python
+# Sincronização em trigger_list, condition_list e action_list
+trigger_list   : trigger_list   error trigger
+condition_list : condition_list error condition
+action_list    : action_list    error action
+```
 
-Depois da construcao da AST, a fase semantica verifica se o programa faz sentido dentro das regras do dominio. Essa etapa esta implementada principalmente em `src/semantic.py`, com apoio de `src/symbol_table.py`.
+Quando um token inválido é encontrado numa lista, o PLY descarta tokens até encontrar algo que case com o próximo item, permitindo que o resto do arquivo seja analisado.
 
-### 6.1 Tabela de simbolos
+---
 
-A tabela de simbolos armazena:
+## 6. Especificação do Analisador Semântico
 
-- entidades declaradas, com nome simbolico, `entity_id` e dominio;
-- dispositivos declarados, com nome simbolico, dominio, `device_id` e `entity_id`.
+### 6.1 Tabela de Símbolos
 
-### 6.2 Inferencia de dominio
+Implementada em `SymbolTable` (dentro de `semantic.py`). Mapeia o prefixo de cada `entity_id` (o domínio HA) para um tipo semântico Homi:
 
-Quando possivel, o dominio e inferido a partir do prefixo de um `entity_id`. Por exemplo:
+| Domínio HA | Tipo Homi |
+|---|---|
+| `light` | `luz` |
+| `switch`, `input_boolean`, `fan` | `interruptor` |
+| `binary_sensor`, `sensor`, `weather`, `climate` | `sensor` |
+| `alarm_control_panel` | `alarme` |
+| `timer` | `timer` |
+| `media_player` | `media` |
+| `cover` | `cortina` |
+| `notify` | `notificacao` |
+| `automation` | `automacao` |
 
-- `light.sala` -> `light`
-- `switch.luzes_da_sala` -> `switch`
-- `media_player.sala` -> `media_player`
+### 6.2 Regras de Verificação
 
-Essa inferencia e usada tanto para validar referencias diretas quanto para verificar compatibilidade entre servicos, acoes e tipos de entidade.
+| # | Regra | Exemplo de erro |
+|---|---|---|
+| 1 | Domínio do `entity_id` deve existir na tabela | `xyz.sensor esta on` |
+| 2 | Estados exclusivos de alarme (`disarmed`, `armed_*`) só em `alarm_control_panel` | `luz light.sala esta desarmada` |
+| 3 | `brilho` exclusivo do domínio `light` | `ligar switch.sala brilho 80%` |
+| 4 | Alvo de `notificar` deve ser `notify.*` | `notificar "msg" para light.sala` |
+| 5 | Duração de `aguardar` não pode ser negativa | `aguardar -5s` |
+| 6 | Nome de automação duplicado (aviso, não erro) | `automacao "X" { ... } automacao "X" { ... }` |
 
-### 6.3 Regras de compatibilidade
+### 6.3 Normalização de Estados
 
-Algumas regras implementadas sao:
+O parser normaliza estados PT → valores HA durante a análise sintática:
 
-- `ligar`, `desligar` e `alternar` so podem ser usados em dominios compativeis, como `light`, `switch` e `cover`;
-- `abrir` e `fechar` sao restritos a `cover`;
-- `timer.start` e `timer.finish` exigem `target` no dominio `timer`;
-- `automation.trigger` exige `target` no dominio `automation`;
-- servicos `media_player.*` exigem alvos do dominio `media_player` ou `device_id`;
-- `notify.*` e `tts.speak` exigem dados textuais;
-- `alexa_devices.send_text_command` exige `device_id` e `text_command`;
-- `alexa_devices.send_sound` exige `device_id` e `sound`.
+| Lexema Homi | Valor HA |
+|---|---|
+| `ligado`, `ligada`, `on` | `on` |
+| `desligado`, `desligada`, `off` | `off` |
+| `armado`, `armada` | `armed_home` |
+| `desarmado`, `desarmada` | `disarmed` |
 
-Tambem sao validadas:
+---
 
-- referencias simbolicas nao declaradas;
-- ids de trigger inexistentes na mesma automacao;
-- formato de horario;
-- coerencia basica de triggers `state`, `device`, `time` e `sun`;
-- modos de automacao (`single` e `restart`).
+## 7. Geração de Código Intermediário (YAML)
 
-### 6.4 Exemplos de erro semantico
+### 7.1 Mapeamento AST → YAML
 
-Os arquivos abaixo foram criados para demonstracao:
+| Construção Homi | YAML Home Assistant |
+|---|---|
+| `automacao "Nome" { ... }` | `- alias: Nome` |
+| `sensor X muda_para on como "ID"` | `trigger: state`, `entity_id: X`, `to: 'on'`, `id: ID` |
+| `ao_horario 05:00` | `trigger: time`, `at: '05:00:00'` |
+| `por_do_sol offset -1h30 como "chuva"` | `trigger: sun`, `event: sunset`, `offset: '-01:30:00'`, `id: chuva` |
+| `X esta desarmado` | `condition: state`, `entity_id: X`, `state: disarmed` |
+| `horario entre 01:00 e 06:30` | `condition: time`, `after: '01:00:00'`, `before: '06:30:00'` |
+| `ligar light.X` | `action: light.turn_on`, `target: {entity_id: X}` |
+| `ligar light.X brilho 50%` | `action: light.turn_on`, `data: {brightness_pct: 50}` |
+| `desligar switch.X` | `action: switch.turn_off`, `target: {entity_id: X}` |
+| `aguardar 45s` | `delay: {seconds: 45}` |
+| `aguardar 4min` | `delay: {minutes: 4}` |
+| `aguardar 1h30` | `delay: {hours: 1, minutes: 30}` |
+| `notificar "msg" para notify.X` | `action: notify.X`, `data: {message: msg}` |
+| `se ... entao: ... fim` | `if: [...]`, `then: [...]` |
+| `se ... entao: ... senao: ... fim` | `if: [...]`, `then: [...]`, `else: [...]` |
+| `escolher: caso ... faca: ... fim` | `choose: [{conditions: [...], sequence: [...]}]` |
+| `modo: unico` | `mode: single` |
+| `modo: reiniciar` | `mode: restart` |
 
-- `examples/invalid_semantic/turn_on_sensor.homi`: tenta ligar um sensor;
-- `examples/invalid_semantic/unknown_trigger_id.homi`: usa um id de gatilho inexistente;
-- `examples/invalid_semantic/wrong_cover_action.homi`: tenta abrir uma entidade que nao e `cover`;
-- `examples/invalid_semantic/wrong_timer_target.homi`: usa `timer.start` com alvo invalido.
+### 7.2 Tratamento de Indentação YAML
 
-Pendente:
+É utilizado o **PyYAML** com um `Dumper` customizado (`_HomiDumper`) que força aspas simples em strings que o YAML padrão converteria para booleanos (`on`, `off`, `true`, `false`) ou interpretaria incorretamente (horários `HH:MM:SS`, offsets `-01:30:00`).
 
-- a AST atual ainda nao preserva, para todos os nos, a origem completa de linha e coluna; por isso, a analise semantica usa posicao padrao em parte dos diagnosticos.
+---
 
-## 7. Geracao de YAML
+## 8. Exemplos de Scripts Homi e YAMLs Resultantes
 
-A geracao de YAML foi implementada em `src/yaml_generator.py`. A entrada dessa fase e a AST ja validada semanticamente, e a saida e uma lista YAML de automacoes no formato esperado pelo Home Assistant.
+### Exemplo 1 — Luz por movimento com lógica de horário
 
-O gerador realiza mapeamentos como:
+**Entrada (`corredor_movimento.homi`):**
+```homi
+automacao "Corredor - movimento" {
+  quando:
+    sensor binary_sensor.motion_sensor_movimento muda_para on como "Detectou"
+    sensor binary_sensor.corredor_suite_luminance_motion_sensor_movimento muda_para on como "Detectou2"
+    sensor binary_sensor.tz3000_6ygjfyll_ts0202 muda_para on como "Detectou3"
 
-- `Automation` -> item YAML com `alias`, `description`, `triggers`, `conditions`, `actions` e `mode`;
-- `StateTrigger` -> `trigger: state`;
-- `DeviceTrigger` -> `trigger: device` com normalizacao de tipos como `ligado -> turned_on`;
-- `SunTrigger` -> `trigger: sun`;
-- `TimeTrigger` -> `trigger: time`;
-- `DeviceAction` -> `type: turn_on`, `turn_off`, `toggle`, `open` ou `close`;
-- `ServiceAction` -> `action`, `target`, `data` e `metadata`;
-- `DelayAction` -> bloco `delay`;
-- `IfAction` -> estrutura `if/then/else`;
-- `ChooseAction` -> estrutura `choose`.
+  se:
+    alarme alarm_control_panel.alarmo esta desarmado
+    luz light.corda_led_corredor esta desligada
 
-### 7.1 Exemplo Homi -> YAML
+  faca:
+    ligar light.corda_led_corredor
+    se
+      horario entre 01:15 e 12:00
+    entao:
+      aguardar 45s
+    senao:
+      aguardar 1min
+    fim
+    desligar light.corda_led_corredor
 
-Entrada Homi:
-
-```text
-automacao "Bom dia" modo single {
-    gatilhos {
-        quando hora "05:00:00" id "Hora";
-    }
-
-    acoes {
-        espere 45s;
-    }
+  modo: reiniciar
 }
 ```
 
-Saida YAML:
-
+**Saída (`corredor_movimento.yaml`):**
 ```yaml
-- alias: Bom dia
-  description: ""
+- alias: Corredor - movimento
   triggers:
-    - trigger: time
-      at: "05:00:00"
-      id: Hora
-  conditions: []
+  - trigger: state
+    entity_id: binary_sensor.motion_sensor_movimento
+    to: 'on'
+    id: Detectou
+  - trigger: state
+    entity_id: binary_sensor.corredor_suite_luminance_motion_sensor_movimento
+    to: 'on'
+    id: Detectou2
+  - trigger: state
+    entity_id: binary_sensor.tz3000_6ygjfyll_ts0202
+    to: 'on'
+    id: Detectou3
+  conditions:
+  - condition: state
+    entity_id: alarm_control_panel.alarmo
+    state: disarmed
+  - condition: state
+    entity_id: light.corda_led_corredor
+    state: 'off'
   actions:
+  - action: light.turn_on
+    target:
+      entity_id: light.corda_led_corredor
+  - if:
+    - condition: time
+      after: '01:15:00'
+      before: '12:00:00'
+    then:
     - delay:
-        hours: 0
-        minutes: 0
         seconds: 45
-        milliseconds: 0
+    else:
+    - delay:
+        minutes: 1
+  - action: light.turn_off
+    target:
+      entity_id: light.corda_led_corredor
+  mode: restart
+```
+
+---
+
+### Exemplo 2 — Gatilho solar com múltiplas escolhas
+
+**Entrada (`por_do_sol.homi`):**
+```homi
+automacao "Por do Sol" {
+  quando:
+    por_do_sol offset -1h30 como "chuva"
+    por_do_sol offset -1h15 como "nublado"
+    por_do_sol offset -45min como "sol"
+
+  se:
+    alarme alarm_control_panel.alarmo esta desarmado
+
+  faca:
+    escolher:
+      caso
+        interruptor switch.luzes_da_cozinha esta desligado
+      faca:
+        ligar switch.luzes_da_cozinha
+    caso
+        interruptor switch.luzes_da_sala esta desligado
+      faca:
+        ligar switch.luzes_da_sala
+    fim
+
+  modo: unico
+}
+```
+
+**Saída (`por_do_sol.yaml`):**
+```yaml
+- alias: Por do Sol
+  triggers:
+  - trigger: sun
+    event: sunset
+    offset: '-01:30:00'
+    id: chuva
+  - trigger: sun
+    event: sunset
+    offset: '-01:15:00'
+    id: nublado
+  - trigger: sun
+    event: sunset
+    offset: '-00:45:00'
+    id: sol
+  conditions:
+  - condition: state
+    entity_id: alarm_control_panel.alarmo
+    state: disarmed
+  actions:
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: switch.luzes_da_cozinha
+        state: 'off'
+      sequence:
+      - action: switch.turn_on
+        target:
+          entity_id: switch.luzes_da_cozinha
+    - conditions:
+      - condition: state
+        entity_id: switch.luzes_da_sala
+        state: 'off'
+      sequence:
+      - action: switch.turn_on
+        target:
+          entity_id: switch.luzes_da_sala
   mode: single
 ```
 
-Ao final da geracao, o YAML produzido e validado com `yaml.safe_load`. Isso garante que a serializacao produzida pelo compilador e sintaticamente carregavel pelo parser YAML da biblioteca.
+---
 
-## 8. Cobertura do YAML do professor
+### Exemplo 3 — Detecção de Erros
 
-O projeto inclui uma etapa especifica de cobertura do arquivo `examples/professor/automations_homi.yaml`. Um script de analise em `tools/analyze_professor_yaml.py` inspeciona o YAML de referencia e gera um relatorio em `docs/professor_yaml_coverage.md`.
+**Script com erro semântico (`erro_semantico.homi`):**
+```homi
+automacao "Erro de tipo - brilho em switch" {
+  quando:
+    sensor binary_sensor.motion muda_para on
+  faca:
+    ligar switch.luzes_da_sala brilho 80%   // ERRO: brilho só em 'light'
+  modo: unico
+}
 
-Esse levantamento mostrou que o material do professor utiliza, entre outros, os seguintes padroes:
+automacao "Erro de tipo - notificar para luz" {
+  quando:
+    sensor binary_sensor.motion muda_para on
+  faca:
+    notificar "msg" para light.sala          // ERRO: alvo deve ser notify.*
+  modo: unico
+}
 
-- triggers `state`, `device`, `time` e `sun`;
-- conditions `state`, `device`, `time`, `sun`, `trigger` e `or`;
-- actions por servico, por dispositivo, `delay`, `if/then/else` e `choose`;
-- campos especiais como `id`, `alias`, `from`, `to`, `above`, `below`, `for`, `enabled`, `brightness_pct`, `weekday`, `offset`, `target`, `data` e `metadata`.
+automacao "Erro de estado - luz desarmada" {
+  quando:
+    sensor binary_sensor.motion muda_para on
+  se:
+    luz light.sala esta desarmado            // ERRO: 'disarmed' só em alarme
+  faca:
+    ligar light.sala
+  modo: unico
+}
+```
 
-Com base nisso, a linguagem Homi cobre:
+**Saída do compilador:**
+```
+Erro semântico [linha 9]  'brilho' só pode ser usado com domínio 'light'; 'switch.luzes_da_sala' pertence ao domínio 'switch'
+Erro semântico [linha 22] o alvo de 'notificar' deve ter domínio 'notify'; recebido: 'light.sala' (domínio: 'light')
+Erro semântico [linha 35] estado 'disarmed' é válido apenas para 'alarm_control_panel'; 'light.sala' tem domínio 'light'
 
-- triggers `state/device/time/sun`;
-- conditions `state/device/time/sun/trigger/or/and`;
-- actions `service/device/delay/if/choose`.
+Compilação interrompida: 3 erro(s) semântico(s).
+```
 
-Tambem foram produzidos exemplos equivalentes em Homi e os respectivos YAMLs gerados em:
+---
 
-- `examples/professor/homi_equivalents/`
-- `examples/professor/generated_yaml/`
+## 9. Estrutura do Repositório
 
-Para detalhes quantitativos e mapeamento padrao por padrao, ver `docs/professor_yaml_coverage.md`.
+```
+homi_compiler/
+├── Makefile                     # targets: run, test, clean, install
+├── homi.py                      # ponto de entrada (CLI)
+├── lexer.py                     # análise léxica (PLY lex)
+├── parser.py                    # análise sintática (PLY yacc, LALR(1))
+├── ast_nodes.py                 # nós da AST (dataclasses)
+├── semantic.py                  # análise semântica + tabela de símbolos
+├── codegen.py                   # geração de código YAML
+├── errors.py                    # classes de erro (ErroLexico, ErroSintatico, ErroSemantico)
+├── parsetab.py                  # tabela LALR(1) gerada automaticamente pelo PLY
+├── docs/
+│   ├── gramatica.md             # GLC completa com notação formal
+│   └── relatorio.md             # este documento
+└── tests/
+    ├── exemplos_validos/
+    │   ├── corredor_movimento.homi / .yaml
+    │   ├── sala_noturna.homi / .yaml
+    │   └── por_do_sol.homi / .yaml
+    └── exemplos_invalidos/
+        ├── erro_lexico.homi
+        ├── erro_sintatico.homi
+        └── erro_semantico.homi
+```
 
-## 9. Testes e execucao
-
-Os testes automatizados usam `pytest`. A forma mais direta de executa-los e:
+## 10. Instruções de Compilação e Execução
 
 ```bash
+# Instalar dependências
+make install          # ou:  pip install ply pyyaml pytest
+
+# Compilar um arquivo .homi
+make run FILE=tests/exemplos_validos/corredor_movimento.homi
+
+# Equivalente direto
+python homi.py tests/exemplos_validos/corredor_movimento.homi
+
+# Especificar arquivo de saída
+python homi.py minha_automacao.homi -o resultado.yaml
+
+# Verificar erros sem gerar saída
+python homi.py minha_automacao.homi --check
+
+# Inspecionar a AST
+python homi.py minha_automacao.homi --ast
+
+# Rodar testes
 make test
 ```
-
-ou, alternativamente:
-
-```bash
-python -m pytest
-```
-
-Para compilar um exemplo Homi para YAML:
-
-```bash
-python -m src.main examples/valid/minimal.homi -o out/minimal.yaml
-```
-
-Para demonstrar erros:
-
-```bash
-python -m src.main examples/invalid_syntax/missing_semicolon.homi -o out/erro.yaml
-python -m src.main examples/invalid_semantic/turn_on_sensor.homi -o out/erro.yaml
-```
-
-O projeto possui testes para:
-
-- scanner;
-- parser LL(1);
-- AST;
-- analise semantica;
-- geracao de YAML;
-- cobertura dos equivalentes do YAML do professor;
-- exemplos didaticos de erro sintatico e semantico.
-
-## 10. Conclusao
-
-O projeto `homi-compiler` implementa as principais fases do front-end de um compilador aplicado a um problema concreto de automacao residencial. O trabalho inclui:
-
-- analise lexica por DFA manual;
-- analise sintatica por tabela preditiva LL(1) com pilha;
-- construcao de AST;
-- analise semantica com tabela de simbolos;
-- inicio do back-end por geracao de YAML.
-
-Tambem foi realizada uma etapa especifica de comparacao com o YAML de referencia do professor, o que ajudou a orientar a evolucao da linguagem Homi para cobrir padroes reais de uso do Home Assistant.
-
-Pendente:
-
-- preservar linha e coluna de forma mais fina em todos os nos da AST para melhorar os diagnosticos semanticos;
-- expandir a linguagem para outros recursos futuros do Home Assistant alem dos padroes atualmente cobertos.

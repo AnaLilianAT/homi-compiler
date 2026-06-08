@@ -1,7 +1,0 @@
-dispositivo interruptor_sala = switch device_id "dev-switch" entity_id "switch.sala";
-
-automacao "Abrir switch" modo single {
-    acoes {
-        faca abrir interruptor_sala;
-    }
-}
