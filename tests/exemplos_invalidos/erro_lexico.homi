@@ -1,5 +1,5 @@
 // Erro léxico: uso de caractere inválido '@' e '#'
-// Esperado: "Erro léxico: caractere '@' na linha 4"
+// Esperado: "Erro léxico: caractere '@' na linha 7"
 // O compilador deve reportar o erro e continuar (não abortar)
 
 automacao "Teste Erro Léxico" {

@@ -15,7 +15,7 @@ automacao "Por do Sol" {
         interruptor switch.luzes_da_cozinha esta desligado
       faca:
         ligar switch.luzes_da_cozinha
-    caso
+      caso
         interruptor switch.luzes_da_sala esta desligado
       faca:
         ligar switch.luzes_da_sala
