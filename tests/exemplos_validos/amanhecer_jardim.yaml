@@ -1,0 +1,22 @@
+- alias: Jardim - amanhecer
+  triggers:
+  - trigger: sun
+    event: sunrise
+    offset: '-00:30:00'
+    id: Pre amanhecer
+  conditions:
+  - condition: state
+    entity_id: switch.irrigacao_jardim
+    state: 'off'
+  actions:
+  - action: light.turn_on
+    target:
+      entity_id: light.jardim_frente
+    data:
+      brightness_pct: 35
+  - delay:
+      minutes: 20
+  - action: light.turn_off
+    target:
+      entity_id: light.jardim_frente
+  mode: queued

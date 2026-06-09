@@ -1,0 +1,16 @@
+// Automacao 5: Jardim no amanhecer
+// Acende a luz externa antes do nascer do sol e desliga depois de um tempo.
+automacao "Jardim - amanhecer" {
+  quando:
+    nascer_do_sol offset -30min como "Pre amanhecer"
+
+  se:
+    interruptor switch.irrigacao_jardim esta desligado
+
+  faca:
+    ligar light.jardim_frente brilho 35 %
+    aguardar 20min
+    desligar light.jardim_frente
+
+  modo: fila
+}

@@ -1,0 +1,36 @@
+- alias: Sala - modo cinema
+  triggers:
+  - trigger: state
+    entity_id: input_boolean.modo_cinema
+    to: 'on'
+    id: Ativado
+  conditions:
+  - condition: state
+    entity_id: alarm_control_panel.alarmo
+    state: disarmed
+  actions:
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: light.sanca_led_sala
+        state: 'on'
+      sequence:
+      - action: light.turn_on
+        target:
+          entity_id: light.sanca_led_sala
+        data:
+          brightness_pct: 20
+      - action: notify.mobile_app_zfold4
+        data:
+          message: Modo cinema ativado
+    - conditions:
+      - condition: state
+        entity_id: media_player.tv_sala
+        state: playing
+      sequence:
+      - action: switch.turn_off
+        target:
+          entity_id: switch.luzes_da_sala
+      - delay:
+          seconds: 10
+  mode: parallel

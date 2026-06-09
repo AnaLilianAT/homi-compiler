@@ -1,0 +1,25 @@
+// Automacao 6: Modo cinema na sala
+// Ajusta luzes e envia aviso quando o modo cinema e ativado.
+automacao "Sala - modo cinema" {
+  quando:
+    interruptor input_boolean.modo_cinema muda_para on como "Ativado"
+
+  se:
+    alarme alarm_control_panel.alarmo esta desarmado
+
+  faca:
+    escolher:
+      caso
+        luz light.sanca_led_sala esta ligada
+      faca:
+        ligar light.sanca_led_sala brilho 20 %
+        notificar "Modo cinema ativado" para notify.mobile_app_zfold4
+      caso
+        media media_player.tv_sala esta "playing"
+      faca:
+        desligar switch.luzes_da_sala
+        aguardar 10s
+    fim
+
+  modo: paralelo
+}
